@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AGENDAMENTO MANUAL DE MÃO DE OBRA</title>
+  <style>
+    :root {
+      --brand: #1778b5;
+      --brand-dark: #0f5886;
+      --bg: #f6f8fb;
+      --card: #ffffff;
+      --text: #1f2937;
+      --muted: #6b7280;
+      --ring: rgba(23,120,181,0.25);
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, "Helvetica Neue", Arial, "Noto Sans", "Liberation Sans", sans-serif;
+      color: var(--text);
+      line-height: 1.35;
+    }
+    .wrap { max-width: 960px; margin: 48px auto; padding: 0 16px; }
+    .brand { display: flex; align-items: center; gap: 16px; margin-bottom: 16px; }
+    .brand img { height: 44px; width: auto; display: block; }
+    .title {
+      font-size: clamp(22px, 3vw, 32px);
+      font-weight: 800;
+      letter-spacing: 0.2px;
+      color: var(--brand-dark);
+      margin: 0 0 20px;
+      text-transform: uppercase;
+    }
+    .card {
+      background: var(--card);
+      border-radius: 16px;
+      padding: 24px;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.06), 0 8px 24px rgba(0,0,0,0.05);
+      border: 1px solid #e5e7eb;
+    }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    @media (max-width: 720px) { .grid { grid-template-columns: 1fr; } }
+    label {
+      font-weight: 600; font-size: 14px; color: #374151; margin-bottom: 6px; display: inline-block;
+    }
+    select, input[type="date"] {
+      width: 100%; font-size: 15px; padding: 10px 12px; border-radius: 10px;
+      border: 1px solid #d1d5db; background: white; outline: none; transition: box-shadow 150ms ease, border-color 150ms ease;
+    }
+    select:focus, input[type="date"]:focus { border-color: var(--brand); box-shadow: 0 0 0 4px var(--ring); }
+    .hint { font-size: 12px; color: var(--muted); margin-top: 6px; }
+    .row { margin-bottom: 14px; }
+    .row--full { grid-column: 1 / -1; }
+    button {
+      appearance: none; cursor: pointer; border: none; padding: 12px 18px; font-weight: 700;
+      border-radius: 12px; background: var(--brand); color: white; transition: background 150ms ease, transform 60ms ease;
+    }
+    button:hover { background: var(--brand-dark); }
+    button:active { transform: translateY(1px); }
+    .actions { display: flex; gap: 10px; align-items: center; justify-content: flex-end; margin-top: 8px; }
+    .tagline { font-size: 13px; color: var(--muted); }
+    .checkbox-list {
+      display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 14px;
+      max-height: 260px; overflow: auto; padding: 10px 12px; border: 1px solid #d1d5db; border-radius: 10px; background: #fff;
+    }
+    @media (max-width: 720px) { .checkbox-list { grid-template-columns: 1fr; } }
+    .checkbox-item { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+    .empty { color: var(--muted); font-size: 14px; padding: 8px; }
+    .toast { display: none; margin-top: 14px; padding: 12px 14px; border-radius: 10px; background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; font-size: 14px; }
+    .toast.error { background: #fef2f2; color: #991b1b; border-color: #fecaca; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="brand">
+      <!-- Coloque o <img> do logo aqui se quiser embutir -->
+      <div class="tagline">Formulário interno • Tech·Wind Services</div>
+    </div>
+    <h1 class="title">AGENDAMENTO MANUAL DE MÃO DE OBRA</h1>
+
+    <form id="form" class="card" autocomplete="off">
+      <div class="grid">
+        <div class="row row--full">
+          <label for="projeto">PARQUE EÓLICO</label>
+          <select id="projeto" name="projeto" required>
+            <option value="" disabled selected>Carregando...</option>
+          </select>
+        </div>
+
+        <div class="row row--full">
+          <label for="cliente">CLIENTE</label>
+          <select id="cliente" name="cliente" required>
+            <option value="" disabled selected>Carregando...</option>
+          </select>
+        </div>
+
+        <div class="row row--full">
+          <label>PESSOA(S) SELECIONADA(S)</label>
+          <div id="nomesBox" class="checkbox-list">
+            <div class="empty">Carregando...</div>
+          </div>
+          <div class="hint">Selecione um ou mais nomes (caixas de seleção).</div>
+        </div>
+
+        <div class="row">
+          <label for="data_inicio">DATA INÍCIO DO PROJETO</label>
+          <input type="date" id="data_inicio" name="data_inicio" required />
+        </div>
+
+        <div class="row">
+          <label for="data_fim">DATA FIM DO PROJETO</label>
+          <input type="date" id="data_fim" name="data_fim" required />
+        </div>
+      </div>
+
+      <div class="actions">
+        <button type="submit">ENVIAR</button>
+      </div>
+      <div id="toast" class="toast"></div>
+    </form>
+  </div>
+
+  <script>
+    // ====== ENDPOINTS (Production URLs do n8n) ======
+    const ENDPOINT_PROJETOS = "https://n8n.ia-techwindservices.com.br/webhook/form/projetos";
+    const ENDPOINT_NOMES    = "https://n8n.ia-techwindservices.com.br/webhook/form/nomes";
+    const ENDPOINT_CLIENTE = "https://n8n.ia-techwindservices.com.br/webhook/form/cliente";
+    const ENDPOINT_SUBMIT   = "https://n8n.ia-techwindservices.com.br/webhook/agendamentos"; // ajuste se necessário
+
+    function toast(msg, isError=false) {
+      const el = document.getElementById("toast");
+      el.textContent = msg;
+      el.className = "toast" + (isError ? " error" : "");
+      el.style.display = "block";
+      setTimeout(() => { el.style.display = "none"; }, 6000);
+    }
+
+    // Aceita tanto array puro quanto { data: [...] }
+    async function parseResponse(resp) {
+      const valores = await resp.json();
+      if (Array.isArray(valores)) return valores;
+      if (valores && Array.isArray(valores.data)) return valores.data;
+      return [];
+    }
+
+    async function carregarProjetos() {
+      const sel = document.getElementById("projeto");
+      sel.innerHTML = `<option disabled selected>Carregando...</option>`;
+      try {
+        const resp = await fetch(ENDPOINT_PROJETOS, { method: "GET" });
+        if (!resp.ok) throw new Error("Falha ao buscar projetos");
+        const lista = await parseResponse(resp);
+
+        sel.innerHTML = "";
+        if (lista.length === 0) {
+          sel.innerHTML = `<option disabled selected>Nenhum projeto disponível</option>`;
+          return;
+        }
+        sel.insertAdjacentHTML("beforeend", `<option value="" disabled selected>SELECIONE O PARQUE</option>`);
+        lista.forEach(v => {
+          if (v && typeof v === "string") {
+            const opt = document.createElement("option");
+            opt.value = v;
+            opt.textContent = v;
+            sel.appendChild(opt);
+          }
+        });
+      } catch (e) {
+        sel.innerHTML = `<option disabled selected>Erro ao carregar</option>`;
+        console.error("Erro projetos:", e);
+        toast("Erro ao carregar projetos: " + e.message, true);
+      }
+    }
+
+
+
+
+
+    async function carregarClientes() {
+      const sel = document.getElementById("cliente");
+      sel.innerHTML = `<option disabled selected>Carregando...</option>`;
+      try {
+        const resp = await fetch(ENDPOINT_CLIENTE, { method: "GET" });
+        if (!resp.ok) throw new Error("Falha ao buscar cliente");
+        const lista = await parseResponse(resp);
+
+        sel.innerHTML = "";
+        if (lista.length === 0) {
+          sel.innerHTML = `<option disabled selected>Nenhum cliente disponível</option>`;
+          return;
+        }
+        sel.insertAdjacentHTML("beforeend", `<option value="" disabled selected>SELECIONE O CLIENTE</option>`);
+        lista.forEach(v => {
+          if (v && typeof v === "string") {
+            const opt = document.createElement("option");
+            opt.value = v;
+            opt.textContent = v;
+            sel.appendChild(opt);
+          }
+        });
+      } catch (e) {
+        sel.innerHTML = `<option disabled selected>Erro ao carregar</option>`;
+        console.error("Erro projetos:", e);
+        toast("Erro ao carregar cliente: " + e.message, true);
+      }
+    }
+
+
+
+
+
+
+
+    async function carregarNomes() {
+      const box = document.getElementById("nomesBox");
+      box.innerHTML = `<div class="empty">Carregando...</div>`;
+      try {
+        const resp = await fetch(ENDPOINT_NOMES, { method: "GET" });
+        if (!resp.ok) throw new Error("Falha ao buscar nomes");
+        const lista = await parseResponse(resp);
+
+        box.innerHTML = "";
+        if (lista.length === 0) {
+          box.innerHTML = `<div class="empty">Nenhum nome disponível</div>`;
+          return;
+        }
+        lista.forEach((v, i) => {
+          if (v && typeof v === "string") {
+            const id = "nome_" + i;
+            const wrap = document.createElement("label");
+            wrap.className = "checkbox-item";
+            wrap.innerHTML = `<input type="checkbox" value="${v.replaceAll('"','&quot;')}" id="${id}"> <span>${v}</span>`;
+            box.appendChild(wrap);
+          }
+        });
+      } catch (e) {
+        box.innerHTML = `<div class="empty">Erro ao carregar nomes</div>`;
+        console.error("Erro nomes:", e);
+        toast("Erro ao carregar nomes: " + e.message, true);
+      }
+    }
+
+    function obterNomesSelecionados() {
+      return Array.from(document.querySelectorAll("#nomesBox input[type=checkbox]:checked")).map(ch => ch.value);
+    }
+
+    async function init() {
+      await Promise.all([carregarProjetos(), carregarClientes(), carregarNomes()]);
+    }
+    document.addEventListener("DOMContentLoaded", init);
+
+    document.getElementById("form").addEventListener("submit", async (ev) => {
+      ev.preventDefault();
+      const projeto = document.getElementById("projeto").value;
+      const cliente = document.getElementById("cliente").value;
+      const nomesSel = obterNomesSelecionados();
+      const data_inicio = document.getElementById("data_inicio").value;
+      const data_fim = document.getElementById("data_fim").value;
+
+      if (!projeto || !cliente || nomesSel.length === 0 || !data_inicio || !data_fim) {
+        toast("Preencha todos os campos obrigatórios.", true);
+        return;
+      }
+
+      try {
+        const resp = await fetch(ENDPOINT_SUBMIT, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ projeto, cliente, nomes: nomesSel, data_inicio, data_fim }),
+        });
+        if (!resp.ok) throw new Error("Falha ao enviar dados");
+        toast("Agendamento enviado com sucesso!");
+        ev.target.reset();
+        document.querySelectorAll("#nomesBox input[type=checkbox]").forEach(ch => ch.checked = false);
+      } catch (e) {
+        console.error("Erro no envio:", e);
+        toast("Erro no envio: " + e.message, true);
+      }
+    });
+  </script>
+</body>
+</html>
